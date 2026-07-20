@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heal Code Clone — FPS Tracking + Drag Rotate</title>
+
+<!--
+  ═══════════════════════════════════════════════════════════════
+  NEW IN THIS VERSION:
+  ✓ FPS-CAMERA style mouse tracking (look down = see top of cube)
+  ✓ CLICK AND DRAG on cube to manually rotate it
+  ✓ Layered animated background (stars + galaxy nebula + dust)
+  ✓ Real home-bg.png support if you put it in public/
+  ✓ More dramatic camera movement so you can actually see faces
+  
+  TWO WAYS TO NAVIGATE THE CUBE:
+  1. Click a game name → snap to that face
+  2. Click and hold on cube, then drag → manual rotation
+  3. Move mouse around screen (idle) → subtle camera tracking
+  ═══════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: #050810;
+  color: white;
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh;
+  overflow: hidden;
+  cursor: none;
+  user-select: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATED SPACE BACKGROUND — multiple layers
+   ═══════════════════════════════════════════════════════════ */
+
+.space-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background-color: #050810;
+  /* background handled by video tag */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Layer 1: Slow drifting deep-space stars */
+.stars-far {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 40% 15%, white, transparent),
+    radial-gradient(1px 1px at 55% 65%, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 70% 30%, white, transparent),
+    radial-gradient(1px 1px at 85% 55%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 15% 75%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 90% 85%, white, transparent);
+  background-size: 800px 800px;
+  animation: stars-drift 180s linear infinite;
+  opacity: 0.7;
+}
+@keyframes stars-drift { from{transform:translateY(0);} to{transform:translateY(-100px);} }
+
+/* Layer 2: Twinkling closer stars */
+.stars-near {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.9), transparent),
+    radial-gradient(2px 2px at 60% 20%, rgba(74,222,128,0.7), transparent),
+    radial-gradient(2px 2px at 80% 60%, rgba(255,255,255,0.8), transparent),
+    radial-gradient(2px 2px at 35% 80%, rgba(255,255,255,0.7), transparent);
+  background-size: 1000px 1000px;
+  animation: twinkle 6s ease-in-out infinite, stars-drift-slow 240s linear infinite;
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.9; }
+}
+@keyframes stars-drift-slow { from{transform:translateY(0);} to{transform:translateY(-50px);} }
+
+/* Layer 3: Galaxy nebula clouds moving slowly */
+.nebula {
+  position: absolute; inset: -20%; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(74, 222, 128, 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 60%, rgba(100, 60, 180, 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 20%, rgba(60, 120, 200, 0.08) 0%, transparent 40%);
+  filter: blur(40px);
+  animation: nebula-drift 45s ease-in-out infinite alternate;
+}
+@keyframes nebula-drift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(-40px, 30px) rotate(2deg); }
+}
+
+/* Layer 4: Floating dust motes */
+.dust {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+}
+.dust::before, .dust::after {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(3px 3px at 20% 30%, rgba(74,222,128,0.4), transparent 60%),
+    radial-gradient(2px 2px at 70% 60%, rgba(74,222,128,0.3), transparent 60%),
+    radial-gradient(2px 2px at 40% 80%, rgba(74,222,128,0.35), transparent 60%);
+  background-size: 500px 500px;
+  animation: dust-float 25s ease-in-out infinite;
+}
+.dust::after { background-size: 700px 700px; animation-duration: 40s; animation-direction: reverse; opacity: 0.6; }
+@keyframes dust-float { 0%,100%{transform:translate(0,0);} 50%{transform:translate(20px,-30px);} }
+
+/* Layer 5: Vertical scan line */
+.scan-vertical {
+  position: absolute; top: 0; width: 2px; height: 100%;
+  background: linear-gradient(180deg, transparent 0%, rgba(74,222,128,0.3) 50%, transparent 100%);
+  box-shadow: 0 0 60px 20px rgba(74,222,128,0.2), 0 0 100px 40px rgba(74,222,128,0.1);
+  animation: sweep 15s linear infinite;
+  z-index: 1;
+}
+@keyframes sweep { from{transform:translateX(-100vw);} to{transform:translateX(100vw);} }
+
+/* Layer 6: Noise film grain */
+.noise-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0.04; mix-blend-mode: overlay; pointer-events: none; z-index: 2;
+}
+
+.vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 0%, transparent 30%, rgba(0,0,0,0.6) 100%);
+}
+.bottom-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 40%; pointer-events: none;
+  background: linear-gradient(to top, rgba(5,8,16,0.9) 0%, transparent 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CURSORS
+   ═══════════════════════════════════════════════════════════ */
+.cursor-container {
+  position: fixed; top: 0; left: 0;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%, -50%);
+  width: 60px; height: 60px;
+  transition: opacity 0.3s;
+}
+.cursor-container.hidden { opacity: 0; }
+.cursor-center {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px; height: 6px; background: #4ade80;
+  border-radius: 50%; box-shadow: 0 0 10px #4ade80;
+}
+.cursor-orbit { position: absolute; inset: 0; animation: orbit-spin 4s linear infinite; }
+@keyframes orbit-spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+.orbit-dot {
+  position: absolute; width: 4px; height: 4px;
+  background: #4ade80; border-radius: 50%;
+  box-shadow: 0 0 6px #4ade80; opacity: 0.7;
+}
+.orbit-dot:nth-child(1) { top: 0; left: 50%; margin-left: -2px; }
+.orbit-dot:nth-child(2) { bottom: 8px; right: 4px; }
+.orbit-dot:nth-child(3) { bottom: 8px; left: 4px; }
+
+.cursor-ring {
+  position: fixed; top: 0; left: 0;
+  pointer-events: none; z-index: 9998;
+  transform: translate(-50%, -50%);
+  width: 50px; height: 50px;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 50%;
+  transition: width 0.3s, height 0.3s, border-color 0.3s, opacity 0.3s;
+}
+.cursor-ring.hover { width: 80px; height: 80px; border-color: white; }
+.cursor-ring.grab { width: 60px; height: 60px; border-color: #4ade80; border-width: 2px; }
+.cursor-ring.hidden { opacity: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   MOUSE LENS OVER CUBE
+   ═══════════════════════════════════════════════════════════ */
+.mouse-lens {
+  position: fixed; top: 0; left: 0;
+  width: 180px; height: 180px;
+  pointer-events: none; z-index: 9997;
+  transform: translate(-50%, -50%);
+  opacity: 0; transition: opacity 0.3s;
+}
+.mouse-lens.active { opacity: 1; }
+.mouse-lens.grabbing .lens-ring { border-color: white; box-shadow: inset 0 0 40px rgba(74, 222, 128, 0.4), 0 0 30px rgba(74, 222, 128, 0.5); }
+.lens-ring {
+  position: absolute; inset: 0;
+  border: 1px solid rgba(74, 222, 128, 0.8);
+  border-radius: 50%;
+  box-shadow: inset 0 0 30px rgba(74, 222, 128, 0.2), 0 0 20px rgba(74, 222, 128, 0.3);
+  transition: all 0.2s;
+}
+.lens-reticle {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px; height: 20px;
+}
+.lens-reticle::before {
+  content: ''; position: absolute; inset: 0;
+  border: 1px solid #4ade80;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: rgba(74, 222, 128, 0.2);
+}
+.lens-reticle::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px; height: 4px; background: #4ade80;
+  border-radius: 50%; box-shadow: 0 0 10px #4ade80;
+}
+.lens-cross {
+  position: absolute; top: 50%; left: 50%;
+  width: 60px; height: 60px;
+  transform: translate(-50%, -50%);
+}
+.lens-cross::before, .lens-cross::after {
+  content: ''; position: absolute; background: rgba(74, 222, 128, 0.6);
+}
+.lens-cross::before { top: 50%; left: 0; width: 100%; height: 1px; transform: translateY(-50%); }
+.lens-cross::after  { left: 50%; top: 0; height: 100%; width: 1px; transform: translateX(-50%); }
+
+/* Small hint text when hovering cube */
+.lens-hint {
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translate(-50%, 10px);
+  font-size: 10px; letter-spacing: 3px;
+  color: rgba(74, 222, 128, 0.7);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+.container { position: relative; z-index: 10; min-height: 100vh; display: flex; flex-direction: column; padding: 30px 60px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; }
+.logo-block .version { color: rgba(255,255,255,0.8); font-size: 12px; letter-spacing: 4px; display: block; }
+.logo-block .name { font-size: 14px; color: white; margin-top: 4px; letter-spacing: 3px; font-weight: 700; }
+.menu-btn {
+  background: transparent; border: 1px solid rgba(255,255,255,0.15);
+  color: white; padding: 12px 24px;
+  font-family: inherit; font-size: 12px;
+  border-radius: 30px; cursor: none;
+  letter-spacing: 2px; margin-top: 20px;
+}
+.login-btn {
+  background: transparent; border: 1px solid #4ade80; color: #4ade80;
+  padding: 16px 32px; font-family: 'Space Mono', monospace;
+  font-size: 14px; letter-spacing: 4px; cursor: none;
+  box-shadow: inset 0 0 20px rgba(74,222,128,0.1), 0 0 20px rgba(74,222,128,0.2);
+  transition: all 0.3s;
+}
+.login-btn:hover {
+  background: rgba(74,222,128,0.1);
+  box-shadow: inset 0 0 30px rgba(74,222,128,0.2), 0 0 40px rgba(74,222,128,0.5);
+}
+
+main { flex: 1; display: grid; grid-template-columns: 1fr 400px 1fr; align-items: center; gap: 40px; }
+.info-left { display: flex; flex-direction: column; gap: 30px; font-size: 12px; letter-spacing: 2px; }
+.info-left .row-1 { color: white; font-size: 16px; letter-spacing: 4px; }
+.info-left .row-2 { color: rgba(255,255,255,0.6); font-size: 14px; letter-spacing: 4px; margin-top: 6px; }
+.info-left .meta-row { display: flex; gap: 20px; }
+.info-left .label { color: rgba(255,255,255,0.4); min-width: 40px; }
+.info-left .value { color: white; }
+
+.games-list { display: flex; flex-direction: column; gap: 20px; }
+.games-list h3 { font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.5); margin-bottom: 10px; align-self: flex-end; }
+.game-item { display: flex; gap: 20px; align-items: center; cursor: none; transition: all 0.3s; padding: 4px 0; }
+.game-item .indicator { width: 20px; height: 20px; border-radius: 50%; border: 1px solid transparent; position: relative; transition: all 0.3s; }
+.game-item.active .indicator { border-color: #4ade80; }
+.game-item.active .indicator::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 8px; background: #4ade80; border-radius: 50%;
+  box-shadow: 0 0 15px #4ade80;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.7; }
+}
+.game-item .num { font-size: 12px; color: rgba(255,255,255,0.4); min-width: 20px; }
+.game-item .title { font-size: 20px; color: rgba(255,255,255,0.6); transition: color 0.3s; letter-spacing: 1px; }
+.game-item.active .title, .game-item:hover .title { color: #4ade80; }
+
+/* ═══════════════════════════════════════════════════════════
+   3D CUBE
+   ═══════════════════════════════════════════════════════════ */
+
+.cube-scene {
+  perspective: 1400px;
+  width: 320px; height: 320px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.cube {
+  position: relative;
+  width: 320px; height: 320px;
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease-out;
+}
+.cube.snapping {
+  transition: transform 1.2s cubic-bezier(0.34, 1.4, 0.6, 1);
+}
+.cube.dragging {
+  transition: none;
+}
+
+.face {
+  position: absolute;
+  width: 320px; height: 320px;
+  border: 1px solid rgba(74,222,128,0.4);
+  overflow: hidden;
+  background: #0a2418;
+  backface-visibility: hidden;
+}
+.face img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: url(#subtle-warp) contrast(1.1) saturate(1.1);
+  pointer-events: none;
+}
+
+.face.front  { transform: translateZ(160px); }
+.face.back   { transform: rotateY(180deg) translateZ(160px); }
+.face.right  { transform: rotateY(90deg)   translateZ(160px); }
+.face.left   { transform: rotateY(-90deg)  translateZ(160px); }
+.face.top    { transform: rotateX(90deg)   translateZ(160px); }
+.face.bottom { transform: rotateX(-90deg)  translateZ(160px); }
+
+.face.top, .face.bottom {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 28px; font-weight: 900; color: white;
+  background: linear-gradient(135deg, #0a2418 0%, #0d5f3e 50%, #2d8b4e 100%);
+}
+
+/* FOOTER (same as before) */
+footer { display: flex; justify-content: space-between; align-items: center; padding-top: 20px; }
+.lang-toggle { display: flex; align-items: center; gap: 15px; font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.5); }
+.lang-toggle .switch { display: flex; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 4px; }
+.lang-toggle .switch span { padding: 6px 16px; border-radius: 20px; cursor: none; font-size: 11px; transition: all 0.3s; }
+.lang-toggle .switch .active { background: white; color: black; }
+.play-cta {
+  display: flex; align-items: center; gap: 20px;
+  border: 1px solid rgba(74,222,128,0.5);
+  border-radius: 40px; padding: 8px 8px 8px 24px;
+  cursor: none; transition: all 0.3s;
+}
+.play-cta:hover { border-color: #4ade80; box-shadow: 0 0 30px rgba(74,222,128,0.3); }
+.play-cta .label { font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.7); line-height: 1.3; }
+.play-cta .btn {
+  background: #4ade80; color: #050810; border: none;
+  padding: 14px 24px; border-radius: 30px;
+  font-family: inherit; font-weight: 700; letter-spacing: 2px;
+  cursor: none; font-size: 12px;
+}
+.how-to-play {
+  position: absolute; bottom: 30px; left: 50%;
+  transform: translateX(-50%);
+  color: white; font-size: 14px; letter-spacing: 2px;
+  cursor: none; text-decoration: underline;
+  text-underline-offset: 6px; z-index: 10;
+}
+.audio-icon {
+  position: fixed; bottom: 30px; right: 30px;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: none; z-index: 10;
+}
+.audio-icon .bars { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
+.audio-icon .bar { width: 2px; background: #4ade80; animation: bar-bounce 1s ease-in-out infinite; }
+.audio-icon .bar:nth-child(1) { animation-delay: 0s; }
+.audio-icon .bar:nth-child(2) { animation-delay: 0.2s; }
+.audio-icon .bar:nth-child(3) { animation-delay: 0.4s; }
+.audio-icon .bar:nth-child(4) { animation-delay: 0.6s; }
+@keyframes bar-bounce { 0%,100%{height:4px;} 50%{height:16px;} }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .info-left, .games-list { display: none; }
+  .container { padding: 20px; }
+}
+.bg-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0.7;pointer-events:none}
+</style>
+</head>
+
+<body>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <filter id="subtle-warp" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="3" result="turbulence">
+        <animate attributeName="baseFrequency" dur="20s"
+          values="0.008 0.012; 0.012 0.008; 0.008 0.012"
+          repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="noiseFilter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch"/>
+    </filter>
+  </defs>
+</svg>
+
+<div class="space-bg" id="spaceBg">
+  <video autoplay loop muted playsinline preload="auto" class="bg-video"><source src="public/space-bg.mp4" type="video/mp4"></video>
+  <div class="nebula"></div>
+  <div class="stars-far"></div>
+  <div class="stars-near"></div>
+  <div class="dust"></div>
+  <div class="scan-vertical"></div>
+  <svg class="noise-layer" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+  </svg>
+  <div class="vignette"></div>
+  <div class="bottom-fade"></div>
+</div>
+
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="cursor-container" id="cursorContainer">
+  <div class="cursor-center"></div>
+  <div class="cursor-orbit">
+    <div class="orbit-dot"></div>
+    <div class="orbit-dot"></div>
+    <div class="orbit-dot"></div>
+  </div>
+</div>
+
+<div class="mouse-lens" id="mouseLens">
+  <div class="lens-ring"></div>
+  <div class="lens-cross"></div>
+  <div class="lens-reticle"></div>
+  <div class="lens-hint" id="lensHint">CLICK &amp; DRAG</div>
+</div>
+
+<div class="container">
+  <header>
+    <div>
+      <div class="logo-block">
+        <span class="version">V-001</span>
+        <span class="name">HEAL CODE</span>
+      </div>
+      <button class="menu-btn" data-hover>≡ Menu</button>
+    </div>
+    <button class="login-btn" data-hover>&gt;_ &gt; LOGIN</button>
+  </header>
+
+  <main>
+    <div class="info-left">
+      <div>
+        <div class="row-1">HEAL CODE</div>
+        <div class="row-2">ESCAPE GAME</div>
+      </div>
+      <div>
+        <div class="meta-row" style="margin-bottom: 8px;">
+          <span class="label">Type</span>
+          <span class="value">Immersive</span>
+        </div>
+        <div class="meta-row">
+          <span class="label">Year</span>
+          <span class="value">2026</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cube-scene" id="cubeScene">
+      <div class="cube" id="cube">
+        <div class="face front">
+          <img src="public/3d/3dbox1en.png" alt="Game 1" onerror="this.onerror=null;this.src='3d/3dbox1en.png';">
+        </div>
+        <div class="face back">
+          <img src="public/3d/3dbox3en.png" alt="Game 3" onerror="this.onerror=null;this.src='3d/3dbox3en.png';">
+        </div>
+        <div class="face right">
+          <img src="public/3d/3dbox2en.png" alt="Game 2" onerror="this.onerror=null;this.src='3d/3dbox2en.png';">
+        </div>
+        <div class="face left">
+          <img src="public/3d/3dbox4en.png" alt="Game 4" onerror="this.onerror=null;this.src='3d/3dbox4en.png';">
+        </div>
+        <div class="face top">V-001</div>
+        <div class="face bottom">HEAL<br>CODE</div>
+      </div>
+    </div>
+
+    <div class="games-list">
+      <h3>GAMES</h3>
+      <div class="game-item active" data-hover data-game-face="front">
+        <div class="indicator"></div>
+        <span class="num">01</span>
+        <span class="title">2077: The Glitch</span>
+      </div>
+      <div class="game-item" data-hover data-game-face="right">
+        <div class="indicator"></div>
+        <span class="num">02</span>
+        <span class="title">EXIT: Human</span>
+      </div>
+      <div class="game-item" data-hover data-game-face="back">
+        <div class="indicator"></div>
+        <span class="num">03</span>
+        <span class="title">DEAD STAR · XIII</span>
+      </div>
+      <div class="game-item" data-hover data-game-face="left">
+        <div class="indicator"></div>
+        <span class="num">04</span>
+        <span class="title">The Devil's Deal</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="lang-toggle">
+      <span>LANGUAGE</span>
+      <div class="switch">
+        <span data-hover>中文</span>
+        <span class="active" data-hover>English</span>
+      </div>
+    </div>
+    <div class="play-cta" data-hover>
+      <span class="label">READY<br>TO PLAY?</span>
+      <button class="btn">BUY TICKET ↗</button>
+    </div>
+  </footer>
+</div>
+
+<a class="how-to-play" data-hover>▶ How to Play</a>
+<div class="audio-icon" data-hover>
+  <div class="bars">
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+  </div>
+</div>
+
+<script>
+  
+  const cursorContainer = document.getElementById('cursorContainer');
+  const cursorRing = document.getElementById('cursorRing');
+  const mouseLens = document.getElementById('mouseLens');
+  const lensHint = document.getElementById('lensHint');
+  const cubeScene = document.getElementById('cubeScene');
+  const cube = document.getElementById('cube');
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let ringX = mouseX, ringY = mouseY;
+
+  // ═══════════════════════════════════════════════════════════
+  // CUBE ROTATION STATE
+  // ═══════════════════════════════════════════════════════════
+  
+  const FACE_ROTATIONS = {
+    'front':  { y: 0,    x: 0 },
+    'right':  { y: -90,  x: 0 },
+    'back':   { y: 180,  x: 0 },
+    'left':   { y: 90,   x: 0 },
+  };
+  
+  let baseRotationY = 0;     // Which face is showing (from click)
+  let baseRotationX = 0;
+  let mouseTiltY = 0;        // Idle mouse tracking
+  let mouseTiltX = 0;
+  let targetTiltY = 0;
+  let targetTiltX = 0;
+  let isSnapping = false;    // Locked during snap animation
+  
+  // Drag state
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragBaseY = 0;
+  let dragBaseX = 0;
+
+  // ═══════════════════════════════════════════════════════════
+  // MOUSE TRACKING — FPS CAMERA STYLE
+  // Mouse DOWN → cube tilts to show its TOP (like looking down)
+  // Mouse UP   → cube tilts to show its BOTTOM (looking up)
+  // ═══════════════════════════════════════════════════════════
+  document.addEventListener('mousemove', (e) => {
+    const prevX = mouseX;
+    const prevY = mouseY;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    
+    cursorContainer.style.left = mouseX + 'px';
+    cursorContainer.style.top  = mouseY + 'px';
+    mouseLens.style.left = mouseX + 'px';
+    mouseLens.style.top  = mouseY + 'px';
+
+    // If dragging, rotate cube based on drag delta
+    if (isDragging) {
+      const deltaX = mouseX - dragStartX;
+      const deltaY = mouseY - dragStartY;
+      // Horizontal drag = Y rotation (spin left/right)
+      baseRotationY = dragBaseY + deltaX * 0.5;
+      // Vertical drag = X rotation (tilt up/down) — INVERTED for FPS feel
+      baseRotationX = dragBaseX - deltaY * 0.5;
+      
+      // Clamp X rotation to prevent flipping upside down
+      baseRotationX = Math.max(-89, Math.min(89, baseRotationX));
+      return;
+    }
+
+    // Idle mouse tracking (only when not snapping and not dragging)
+    if (!isSnapping) {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      
+      // Y rotation: mouse LEFT = cube shows RIGHT face, mouse RIGHT = shows LEFT
+      // This feels like turning your head
+      targetTiltY = ((mouseX - centerX) / centerX) * 45;
+      
+      // X rotation: FPS-CAMERA STYLE
+      // Mouse DOWN (below center) → positive value → shows TOP of cube
+      // Mouse UP   (above center) → negative value → shows BOTTOM of cube
+      // This is the key change — no more minus sign!
+      targetTiltX = ((mouseY - centerY) / centerY) * 35;
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // ANIMATION LOOP
+  // ═══════════════════════════════════════════════════════════
+  function updateCube() {
+    if (!isDragging && !isSnapping) {
+      // Smoothly ease toward target
+      mouseTiltY += (targetTiltY - mouseTiltY) * 0.06;
+      mouseTiltX += (targetTiltX - mouseTiltX) * 0.06;
+    }
+
+    const totalY = baseRotationY + (isDragging ? 0 : mouseTiltY);
+    const totalX = baseRotationX + (isDragging ? 0 : mouseTiltX);
+    
+    cube.style.transform = `rotateY(${totalY}deg) rotateX(${totalX}deg)`;
+
+    // Cursor ring smooth follow
+    ringX += (mouseX - ringX) * 0.12;
+    ringY += (mouseY - ringY) * 0.12;
+    cursorRing.style.left = ringX + 'px';
+    cursorRing.style.top  = ringY + 'px';
+    
+    requestAnimationFrame(updateCube);
+  }
+  updateCube();
+
+  // ═══════════════════════════════════════════════════════════
+  // DRAG TO ROTATE — click and hold on cube
+  // ═══════════════════════════════════════════════════════════
+  cubeScene.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStartX = mouseX;
+    dragStartY = mouseY;
+    dragBaseY = baseRotationY + mouseTiltY;  // Start from current combined position
+    dragBaseX = baseRotationX + mouseTiltX;
+    // Reset tilt (drag takes over)
+    mouseTiltY = 0;
+    mouseTiltX = 0;
+    targetTiltY = 0;
+    targetTiltX = 0;
+    
+    cube.classList.add('dragging');
+    mouseLens.classList.add('grabbing');
+    lensHint.textContent = 'DRAGGING';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      cube.classList.remove('dragging');
+      mouseLens.classList.remove('grabbing');
+      lensHint.textContent = 'CLICK & DRAG';
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // CLICK GAME → SNAP TO FACE
+  // ═══════════════════════════════════════════════════════════
+  document.querySelectorAll('.game-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.game-item').forEach(g => g.classList.remove('active'));
+      item.classList.add('active');
+
+      const face = item.dataset.gameFace;
+      const target = FACE_ROTATIONS[face];
+      
+      if (target) {
+        isSnapping = true;
+        cube.classList.add('snapping');
+        
+        baseRotationY = target.y;
+        baseRotationX = target.x;
+        mouseTiltY = 0;
+        mouseTiltX = 0;
+        targetTiltY = 0;
+        targetTiltX = 0;
+        
+        cube.style.transform = `rotateY(${target.y}deg) rotateX(${target.x}deg)`;
+        
+        setTimeout(() => {
+          cube.classList.remove('snapping');
+          isSnapping = false;
+        }, 1200);
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // CURSOR HOVER STATES
+  // ═══════════════════════════════════════════════════════════
+  cubeScene.addEventListener('mouseenter', () => {
+    mouseLens.classList.add('active');
+    cursorContainer.classList.add('hidden');
+    cursorRing.classList.add('hidden');
+  });
+  cubeScene.addEventListener('mouseleave', () => {
+    if (!isDragging) {
+      mouseLens.classList.remove('active');
+      cursorContainer.classList.remove('hidden');
+      cursorRing.classList.remove('hidden');
+    }
+  });
+
+  document.querySelectorAll('[data-hover]').forEach(el => {
+    el.addEventListener('mouseenter', () => cursorRing.classList.add('hover'));
+    el.addEventListener('mouseleave', () => cursorRing.classList.remove('hover'));
+  });
+
+  document.querySelectorAll('.lang-toggle .switch span').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.lang-toggle .switch span').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
