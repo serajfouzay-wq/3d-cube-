@@ -1,0 +1,340 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   AETHERION — foundations
+   Tokens, typography, canvas layers, loader, cursor, world labels.
+   Layout uses logical properties throughout (inline-start/end rather than
+   left/right) so switching to Arabic mirrors the entire interface from the
+   single dir="rtl" the i18n engine sets on <html>.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* ── Surface ── */
+  --bg:            #03050b;
+  --bg-raise:      #070b16;
+  --ink:           #eef3ff;
+  --ink-soft:      rgba(238, 243, 255, 0.62);
+  --ink-faint:     rgba(238, 243, 255, 0.34);
+  --ink-ghost:     rgba(238, 243, 255, 0.14);
+  --hairline:      rgba(238, 243, 255, 0.11);
+  --hairline-lit:  rgba(238, 243, 255, 0.28);
+
+  /* ── Accent (mirrors BRAND.accent in config.js) ── */
+  --accent:        #7cc4ff;
+  --accent-warm:   #ffb27a;
+  --accent-a10:    rgba(124, 196, 255, 0.10);
+  --accent-a20:    rgba(124, 196, 255, 0.20);
+  --accent-a40:    rgba(124, 196, 255, 0.40);
+  --accent-glow:   rgba(124, 196, 255, 0.55);
+
+  /* Per-world accent; overwritten inline by JS on labels and the dossier. */
+  --world-accent:  var(--accent);
+  --world-atmo:    var(--accent);
+
+  /* ── Type ── */
+  --font-ui:     'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:   'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-serif:  'Instrument Serif', 'Playfair Display', Georgia, serif;
+  --font-stack:  var(--font-ui);
+  --font-display: var(--font-serif);
+
+  /* ── Rhythm ── */
+  --pad-x: clamp(20px, 4vw, 64px);
+  --pad-y: clamp(18px, 2.6vh, 34px);
+  --micro: 0.68rem;
+  --track-wide: 0.32em;
+
+  --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur:       0.55s;
+}
+
+/* Script-specific stacks. `data-font` is set by the i18n engine, so Arabic
+   and Chinese get faces with real coverage instead of falling back to a
+   system default mid-sentence. The display serif has no Arabic or CJK cut,
+   so those scripts route display text to their own family too. */
+html[data-font='arabic'] {
+  --font-stack: 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  --font-display: 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  --track-wide: 0.06em;   /* Arabic must not be letter-spaced — it breaks joins */
+}
+html[data-font='cjk'] {
+  --font-stack: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --track-wide: 0.16em;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-stack);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.has-custom-cursor,
+body.has-custom-cursor * { cursor: none !important; }
+
+body.is-dragging #stage { cursor: grabbing; }
+
+img { max-width: 100%; display: block; }
+button { font: inherit; color: inherit; background: none; border: none; }
+
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ── Layers ─────────────────────────────────────────────────────────── */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  display: block;
+  touch-action: none;   /* we own every gesture on the canvas */
+}
+
+/* Source-only: sampled into WebGL, never painted by the browser.
+   1×1 and opacity 0 rather than display:none, because a display:none video
+   is not guaranteed to keep decoding frames. */
+.backdrop-source {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── World labels ───────────────────────────────────────────────────── */
+
+.labels {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.world-label {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 14px 12px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: auto;
+  will-change: transform, opacity;
+  transition: filter var(--dur) var(--ease-out);
+}
+
+.world-label__line {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(to bottom, transparent, var(--world-accent));
+  opacity: 0.4;
+  transform-origin: bottom;
+  transform: scaleY(0.55);
+  transition: transform var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out);
+}
+
+.world-label__code {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  color: var(--world-accent);
+  opacity: 0.75;
+}
+
+.world-label__name {
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 1.4vw, 1.35rem);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  color: var(--ink);
+  text-shadow: 0 0 24px rgba(0, 0, 0, 0.85), 0 0 14px var(--world-accent);
+  transition: font-size var(--dur) var(--ease-out);
+}
+
+.world-label__epithet {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  color: var(--ink-faint);
+  max-width: 22ch;
+  white-space: normal;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+
+.world-label.is-hovered .world-label__epithet,
+.world-label.is-focused .world-label__epithet { opacity: 1; transform: translateY(0); }
+
+.world-label.is-hovered .world-label__line,
+.world-label.is-focused .world-label__line { transform: scaleY(1); opacity: 0.85; }
+
+.world-label.is-hovered .world-label__name { color: #fff; }
+
+.world-label.is-focused .world-label__name {
+  font-size: clamp(1.3rem, 2.2vw, 2rem);
+  letter-spacing: 0.14em;
+}
+
+/* A surveyed world is marked permanently. */
+.world-label.is-scanned .world-label__code::after {
+  content: ' ●';
+  font-size: 0.5em;
+  vertical-align: middle;
+}
+
+/* Narrow screens cannot carry five floating titles alongside the index list;
+   the epithet goes first, then the name shrinks. */
+@media (max-width: 820px) {
+  .world-label__epithet { display: none; }
+  .world-label { padding: 6px 8px 8px; }
+  .world-label__name { font-size: 0.85rem; }
+  .world-label:not(.is-hovered):not(.is-focused) .world-label__name { opacity: 0.7; }
+}
+
+/* ── Loader ─────────────────────────────────────────────────────────── */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  transition: opacity 0.85s var(--ease-out), visibility 0.85s;
+}
+.loader.is-done { opacity: 0; visibility: hidden; pointer-events: none; }
+.loader[hidden] { display: none; }
+
+.loader__inner { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+
+.loader__mark {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  letter-spacing: 0.22em;
+  padding-inline-start: 0.22em;   /* optical: cancels the trailing track */
+  color: var(--ink);
+  animation: mark-breathe 3.2s var(--ease-soft) infinite;
+}
+@keyframes mark-breathe {
+  0%, 100% { opacity: 0.55; text-shadow: 0 0 0 transparent; }
+  50%      { opacity: 1;    text-shadow: 0 0 34px var(--accent-glow); }
+}
+
+.loader__text {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  letter-spacing: var(--track-wide);
+  color: var(--ink-faint);
+  min-height: 1em;
+}
+
+.loader__bar {
+  --progress: 0;
+  position: relative;
+  width: min(240px, 46vw);
+  height: 1px;
+  background: var(--ink-ghost);
+  overflow: hidden;
+}
+.loader__bar > span {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  background: linear-gradient(to right, var(--accent), var(--accent-warm));
+  transform: scaleX(var(--progress));
+  transform-origin: inline-start;
+  transition: transform 0.6s var(--ease-out);
+}
+.loader.is-error .loader__text { color: var(--accent-warm); }
+
+/* ── Cursor ─────────────────────────────────────────────────────────── */
+
+.cursor { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+body:not(.has-custom-cursor) .cursor { display: none; }
+
+.cursor-dot {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  will-change: transform;
+}
+
+.cursor-ring {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 50px;
+  height: 50px;
+  will-change: transform;
+  transition: width 0.42s var(--ease-out), height 0.42s var(--ease-out);
+}
+.cursor-svg { width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+
+.cursor-scan-track {
+  fill: none;
+  stroke: var(--ink-ghost);
+  stroke-width: 1;
+  transition: stroke 0.35s var(--ease-out);
+}
+.cursor.on-world .cursor-scan-track { stroke: var(--hairline-lit); }
+.cursor[data-state='link'] .cursor-scan-track { stroke: var(--accent-a40); }
+
+.cursor-scan-arc {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+.cursor.is-scanning .cursor-scan-arc { opacity: 1; }
+
+.cursor.on-world .cursor-ring { width: 76px; height: 76px; }
+.cursor.is-down  .cursor-ring { width: 40px; height: 40px; }
+
+/* ── Motion preferences ─────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* The scene keeps rendering — Stage and the world modules independently
+     dial back their own motion when store.reduceMotion is set. */
+}

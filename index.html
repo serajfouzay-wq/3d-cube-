@@ -1,888 +1,192 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr" data-font="ui">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ASTRA PRIME — Planetary System</title>
-
-<!--
-  ═══════════════════════════════════════════════════════════════
-  BIG UPDATE:
-  ✓ Planet name labels floating below each planet
-  ✓ BLUE color theme (was green)
-  ✓ New game names: ASTRA PRIME / NEBULA CODE / VOID PROTOCOL / STELLAR RIFT
-  ✓ Names sync everywhere (sidebar, labels, info panel)
-  ✓ Single selection: click new planet → old one returns automatically
-  ✓ Better fly-to-center position (in front of camera, not too close)
-  ✓ MORE animations: particle trails, glow pulse, orbit rings
-  ✓ Video background preserved
-  ═══════════════════════════════════════════════════════════════
--->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#03050b">
+<title>AETHERION — Stellar Catalog</title>
+<meta name="description" content="AETHERION Frontier Systems — an interactive survey of five worlds.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Sans+Arabic:wght@300;400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
 
+<link rel="stylesheet" href="src/styles/base.css">
+<link rel="stylesheet" href="src/styles/hud.css">
+
+<!--
+  Three.js is resolved from a CDN via an import map, matching the project's
+  existing zero-build setup: there is no bundler, no npm install, no compile
+  step. Serve the folder over HTTP and it runs.
+  To vendor it instead, drop the three package into vendor/ and repoint these
+  two entries at the local paths — nothing else changes.
+-->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
   }
 }
 </script>
-
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* ═══════════════════════════════════════════════════════════
-   THEME — Change these to rebrand everywhere at once
-   ═══════════════════════════════════════════════════════════ */
-:root {
-  --accent: #00d4ff;              /* Main blue */
-  --accent-bright: #4de4ff;
-  --accent-dim: rgba(0, 212, 255, 0.4);
-  --accent-glow: rgba(0, 212, 255, 0.5);
-  --accent-t10: rgba(0, 212, 255, 0.10);
-  --accent-t20: rgba(0, 212, 255, 0.20);
-  --accent-t30: rgba(0, 212, 255, 0.30);
-  --accent-t50: rgba(0, 212, 255, 0.50);
-}
-
-html, body {
-  background: #050810;
-  color: white;
-  font-family: 'Space Mono', monospace;
-  min-height: 100vh;
-  overflow: hidden;
-  cursor: none;
-  user-select: none;
-}
-
-/* VIDEO BACKGROUND */
-.bg-video {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  z-index: 0;
-  opacity: 0.5;
-  pointer-events: none;
-}
-.vignette {
-  position: fixed; inset: 0; pointer-events: none; z-index: 1;
-  background: radial-gradient(ellipse at center, transparent 0%, transparent 30%, rgba(0,0,0,0.6) 100%);
-}
-
-/* CANVAS */
-#solar-canvas {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  z-index: 5;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   PLANET LABELS — HTML overlaid on 3D positions
-   ═══════════════════════════════════════════════════════════ */
-.planet-labels {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 15;
-}
-.planet-label {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  transition: opacity 0.3s;
-  white-space: nowrap;
-}
-.planet-label .code {
-  font-size: 10px;
-  letter-spacing: 4px;
-  color: var(--accent);
-  opacity: 0.8;
-  margin-bottom: 4px;
-}
-.planet-label .name {
-  font-family: 'Playfair Display', serif;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  color: white;
-  text-shadow: 0 0 15px var(--accent-glow);
-}
-.planet-label.dimmed { opacity: 0.3; }
-.planet-label.selected .name { font-size: 22px; color: var(--accent-bright); }
-
-/* CURSORS */
-.cursor-container {
-  position: fixed; top: 0; left: 0;
-  pointer-events: none; z-index: 9999;
-  transform: translate(-50%, -50%);
-  width: 60px; height: 60px;
-}
-.cursor-center {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 6px; height: 6px; background: var(--accent);
-  border-radius: 50%; box-shadow: 0 0 10px var(--accent);
-}
-.cursor-orbit { position: absolute; inset: 0; animation: orbit-spin 4s linear infinite; }
-@keyframes orbit-spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-.orbit-dot {
-  position: absolute; width: 4px; height: 4px;
-  background: var(--accent); border-radius: 50%;
-  box-shadow: 0 0 6px var(--accent); opacity: 0.7;
-}
-.orbit-dot:nth-child(1) { top: 0; left: 50%; margin-left: -2px; }
-.orbit-dot:nth-child(2) { bottom: 8px; right: 4px; }
-.orbit-dot:nth-child(3) { bottom: 8px; left: 4px; }
-
-.cursor-ring {
-  position: fixed; top: 0; left: 0;
-  pointer-events: none; z-index: 9998;
-  transform: translate(-50%, -50%);
-  width: 50px; height: 50px;
-  border: 1px solid var(--accent-dim);
-  border-radius: 50%;
-  transition: width 0.3s, height 0.3s, border-color 0.3s;
-}
-.cursor-ring.hover-planet {
-  width: 100px; height: 100px;
-  border-color: white;
-  border-width: 2px;
-}
-
-/* UI LAYOUT */
-.container {
-  position: relative;
-  z-index: 20;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  padding: 30px 60px;
-  pointer-events: none;
-}
-.container > * { pointer-events: auto; }
-
-header { display: flex; justify-content: space-between; align-items: flex-start; }
-.logo-block .version { color: rgba(255,255,255,0.8); font-size: 12px; letter-spacing: 4px; display: block; }
-.logo-block .name { font-size: 14px; color: white; margin-top: 4px; letter-spacing: 3px; font-weight: 700; }
-.menu-btn {
-  background: transparent; border: 1px solid rgba(255,255,255,0.15);
-  color: white; padding: 12px 24px;
-  font-family: inherit; font-size: 12px;
-  border-radius: 30px; cursor: none;
-  letter-spacing: 2px; margin-top: 20px;
-}
-.login-btn {
-  background: transparent; border: 1px solid var(--accent); color: var(--accent);
-  padding: 16px 32px; font-family: 'Space Mono', monospace;
-  font-size: 14px; letter-spacing: 4px; cursor: none;
-  box-shadow: inset 0 0 20px var(--accent-t10), 0 0 20px var(--accent-t20);
-  transition: all 0.3s;
-}
-.login-btn:hover {
-  background: var(--accent-t10);
-  box-shadow: inset 0 0 30px var(--accent-t20), 0 0 40px var(--accent-t50);
-}
-
-main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-}
-.info-left {
-  display: flex; flex-direction: column;
-  gap: 30px; font-size: 12px; letter-spacing: 2px;
-}
-.info-left .row-1 { color: white; font-size: 16px; letter-spacing: 4px; }
-.info-left .row-2 { color: rgba(255,255,255,0.6); font-size: 14px; letter-spacing: 4px; margin-top: 6px; }
-.info-left .meta-row { display: flex; gap: 20px; }
-.info-left .label { color: rgba(255,255,255,0.4); min-width: 40px; }
-.info-left .value { color: white; }
-
-.games-list {
-  display: flex; flex-direction: column;
-  gap: 20px; justify-self: end;
-}
-.games-list h3 {
-  font-size: 11px; letter-spacing: 4px;
-  color: rgba(255,255,255,0.5);
-  margin-bottom: 10px; align-self: flex-end;
-}
-.game-item {
-  display: flex; gap: 20px; align-items: center;
-  cursor: none; transition: all 0.3s; padding: 4px 0;
-}
-.game-item .indicator {
-  width: 20px; height: 20px; border-radius: 50%;
-  border: 1px solid transparent; position: relative;
-  transition: all 0.3s;
-}
-.game-item.active .indicator { border-color: var(--accent); }
-.game-item.active .indicator::after {
-  content: ''; position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 8px; height: 8px; background: var(--accent); border-radius: 50%;
-  box-shadow: 0 0 15px var(--accent);
-  animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.7; }
-}
-.game-item .num { font-size: 12px; color: rgba(255,255,255,0.4); min-width: 20px; }
-.game-item .title { font-size: 20px; color: rgba(255,255,255,0.6); transition: color 0.3s; letter-spacing: 1px; }
-.game-item.active .title, .game-item:hover .title { color: var(--accent); }
-
-footer {
-  display: flex; justify-content: space-between;
-  align-items: center; padding-top: 20px;
-}
-.lang-toggle {
-  display: flex; align-items: center;
-  gap: 15px; font-size: 11px; letter-spacing: 3px;
-  color: rgba(255,255,255,0.5);
-}
-.lang-toggle .switch {
-  display: flex; background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px; padding: 4px;
-}
-.lang-toggle .switch span {
-  padding: 6px 16px; border-radius: 20px;
-  cursor: none; font-size: 11px; transition: all 0.3s;
-}
-.lang-toggle .switch .active { background: white; color: black; }
-.play-cta {
-  display: flex; align-items: center; gap: 20px;
-  border: 1px solid var(--accent-t50);
-  border-radius: 40px; padding: 8px 8px 8px 24px;
-  cursor: none; transition: all 0.3s;
-}
-.play-cta:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 30px var(--accent-t30);
-}
-.play-cta .label {
-  font-size: 11px; letter-spacing: 2px;
-  color: rgba(255,255,255,0.7); line-height: 1.3;
-}
-.play-cta .btn {
-  background: var(--accent); color: #050810; border: none;
-  padding: 14px 24px; border-radius: 30px;
-  font-family: inherit; font-weight: 700; letter-spacing: 2px;
-  cursor: none; font-size: 12px;
-}
-
-.how-to-play {
-  position: absolute; bottom: 30px; left: 50%;
-  transform: translateX(-50%);
-  color: white; font-size: 14px; letter-spacing: 2px;
-  cursor: none; text-decoration: underline;
-  text-underline-offset: 6px; z-index: 20;
-}
-.audio-icon {
-  position: fixed; bottom: 30px; right: 30px;
-  width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.15);
-  display: flex; align-items: center; justify-content: center;
-  cursor: none; z-index: 20;
-}
-.audio-icon .bars { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
-.audio-icon .bar {
-  width: 2px; background: var(--accent);
-  animation: bar-bounce 1s ease-in-out infinite;
-}
-.audio-icon .bar:nth-child(1) { animation-delay: 0s; }
-.audio-icon .bar:nth-child(2) { animation-delay: 0.2s; }
-.audio-icon .bar:nth-child(3) { animation-delay: 0.4s; }
-.audio-icon .bar:nth-child(4) { animation-delay: 0.6s; }
-@keyframes bar-bounce { 0%,100%{height:4px;} 50%{height:16px;} }
-
-/* Selected planet info panel */
-.planet-info {
-  position: fixed;
-  bottom: 180px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  text-align: center;
-  opacity: 0;
-  transition: opacity 0.6s ease 0.3s;
-  pointer-events: none;
-}
-.planet-info.visible { opacity: 1; }
-.planet-info .name {
-  font-family: 'Playfair Display', serif;
-  font-size: 32px; font-weight: 900;
-  color: white;
-  letter-spacing: 4px;
-  text-shadow: 0 0 20px var(--accent-glow);
-}
-.planet-info .subtitle {
-  font-size: 12px; letter-spacing: 4px;
-  color: var(--accent);
-  margin-top: 8px;
-}
-
-.loading {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--accent);
-  font-size: 14px;
-  letter-spacing: 4px;
-  z-index: 100;
-  animation: loading-pulse 1.5s ease-in-out infinite;
-}
-@keyframes loading-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-.loading.hidden { display: none; }
-
-@media (max-width: 900px) {
-  main { grid-template-columns: 1fr; }
-  .info-left, .games-list { display: none; }
-  .container { padding: 20px; }
-}
-</style>
 </head>
 
 <body>
 
-<video autoplay loop muted playsinline preload="auto" class="bg-video">
+<!-- ═══ Backdrop plate ═══════════════════════════════════════════════════
+     Not displayed directly: this element is the source for a VideoTexture
+     that is composited inside WebGL, so it shares the scene's exposure,
+     bloom and grain. Kept in the DOM (not detached) because browsers stop
+     decoding video elements that are removed from the document.
+     ═══════════════════════════════════════════════════════════════════ -->
+<video id="backdrop-video" class="backdrop-source"
+       autoplay loop muted playsinline preload="auto" aria-hidden="true" tabindex="-1">
   <source src="public/space-bg.mp4" type="video/mp4">
 </video>
-<div class="vignette"></div>
 
-<div class="loading" id="loading">INITIALIZING PLANETARY SYSTEM...</div>
+<canvas id="stage" aria-label="Interactive star system" role="img"></canvas>
 
-<canvas id="solar-canvas"></canvas>
+<!-- Floating world labels, projected from 3D each frame -->
+<div id="labels" class="labels" aria-hidden="false"></div>
 
-<!-- FLOATING PLANET LABELS -->
-<div class="planet-labels" id="planetLabels">
-  <div class="planet-label" data-planet="0">
-    <div class="code">01</div>
-    <div class="name">ASTRA PRIME</div>
-  </div>
-  <div class="planet-label" data-planet="1">
-    <div class="code">02</div>
-    <div class="name">NEBULA CODE</div>
-  </div>
-  <div class="planet-label" data-planet="2">
-    <div class="code">03</div>
-    <div class="name">VOID PROTOCOL</div>
-  </div>
-  <div class="planet-label" data-planet="3">
-    <div class="code">04</div>
-    <div class="name">STELLAR RIFT</div>
+<!-- ═══ Loader ═══════════════════════════════════════════════════════ -->
+<div id="loader" class="loader">
+  <div class="loader__inner">
+    <div class="loader__mark">AE</div>
+    <div id="loader-text" class="loader__text">INITIALISING</div>
+    <div id="loader-bar" class="loader__bar"><span></span></div>
   </div>
 </div>
 
-<div class="cursor-ring" id="cursorRing"></div>
-<div class="cursor-container" id="cursorContainer">
-  <div class="cursor-center"></div>
-  <div class="cursor-orbit">
-    <div class="orbit-dot"></div>
-    <div class="orbit-dot"></div>
-    <div class="orbit-dot"></div>
+<!-- ═══ Custom cursor ════════════════════════════════════════════════ -->
+<div id="cursor" class="cursor" aria-hidden="true">
+  <div class="cursor-dot"></div>
+  <div class="cursor-ring">
+    <svg viewBox="0 0 50 50" class="cursor-svg">
+      <circle class="cursor-scan-track" cx="25" cy="25" r="22" />
+      <circle class="cursor-scan-arc"   cx="25" cy="25" r="22" />
+    </svg>
   </div>
 </div>
 
-<div class="planet-info" id="planetInfo">
-  <div class="name" id="planetName">ASTRA PRIME</div>
-  <div class="subtitle">CLICK PLANET TO RETURN</div>
-</div>
+<!-- ═══ HUD ══════════════════════════════════════════════════════════ -->
+<div class="hud">
 
-<div class="container">
-  <header>
-    <div>
-      <div class="logo-block">
-        <span class="version">V-001</span>
-        <span class="name">HEAL CODE</span>
-      </div>
-      <button class="menu-btn" data-hover>≡ Menu</button>
+  <header class="hud__top">
+    <div class="brand">
+      <span class="brand__version" data-brand="version">V-2.0</span>
+      <h1 class="brand__name" data-brand="name">AETHERION</h1>
+      <span class="brand__division" data-i18n="brand.division">FRONTIER SYSTEMS</span>
     </div>
-    <button class="login-btn" data-hover>&gt;_ &gt; LOGIN</button>
+
+    <nav class="hud__nav">
+      <button id="menu-toggle" type="button" class="btn btn--ghost"
+              data-cursor="link" aria-expanded="false" aria-controls="menu">
+        <span class="btn__bars" aria-hidden="true"><i></i><i></i></span>
+        <span data-i18n="nav.menu">Menu</span>
+      </button>
+      <button type="button" class="btn btn--outline" data-cursor="link">
+        <span data-i18n="nav.login">Access</span>
+        <span class="btn__arrow" aria-hidden="true">↗</span>
+      </button>
+    </nav>
   </header>
 
-  <main>
-    <div class="info-left">
-      <div>
-        <div class="row-1">HEAL CODE</div>
-        <div class="row-2">ESCAPE GAME</div>
+  <div class="hud__middle">
+    <aside class="meta">
+      <div class="meta__title">
+        <span class="meta__catalog" data-i18n="hud.catalog">STELLAR CATALOG</span>
+        <p class="meta__claim" data-i18n="brand.claim">Five worlds. One expedition.</p>
       </div>
-      <div>
-        <div class="meta-row" style="margin-bottom: 8px;">
-          <span class="label">Type</span>
-          <span class="value">Immersive</span>
+      <dl class="meta__rows">
+        <div class="meta__row">
+          <dt data-i18n="hud.type">Type</dt><dd data-i18n="hud.typeValue">Immersive</dd>
         </div>
-        <div class="meta-row">
-          <span class="label">Year</span>
-          <span class="value">2026</span>
+        <div class="meta__row">
+          <dt data-i18n="hud.status">Status</dt><dd data-i18n="hud.statusValue">Surveying</dd>
         </div>
-      </div>
+        <div class="meta__row">
+          <dt data-i18n="hud.year">Year</dt><dd data-brand="year">2026</dd>
+        </div>
+      </dl>
+    </aside>
+
+    <nav class="world-index" aria-labelledby="world-index-title">
+      <h2 id="world-index-title" class="world-index__title" data-i18n="hud.worlds">WORLDS</h2>
+      <ol id="world-index" class="world-index__list"></ol>
+    </nav>
+  </div>
+
+  <footer class="hud__bottom">
+    <div class="lang">
+      <span class="lang__label" data-i18n="hud.language">LANGUAGE</span>
+      <div id="lang-switch" class="lang-switch" role="group" aria-label="Language"></div>
     </div>
 
-    <div class="games-list">
-      <h3>GAMES</h3>
-      <div class="game-item active" data-hover data-planet="0">
-        <div class="indicator"></div>
-        <span class="num">01</span>
-        <span class="title">Astra Prime</span>
-      </div>
-      <div class="game-item" data-hover data-planet="1">
-        <div class="indicator"></div>
-        <span class="num">02</span>
-        <span class="title">Nebula Code</span>
-      </div>
-      <div class="game-item" data-hover data-planet="2">
-        <div class="indicator"></div>
-        <span class="num">03</span>
-        <span class="title">Void Protocol</span>
-      </div>
-      <div class="game-item" data-hover data-planet="3">
-        <div class="indicator"></div>
-        <span class="num">04</span>
-        <span class="title">Stellar Rift</span>
-      </div>
-    </div>
-  </main>
+    <p id="hint" class="hint">
+      <span class="hint__key" aria-hidden="true">⇄</span>
+      <span data-i18n="hud.dragHint">Drag to rotate the system</span>
+      <span class="hint__sep" aria-hidden="true">·</span>
+      <span data-i18n="hud.scanHint">Hold a world to scan</span>
+    </p>
 
-  <footer>
-    <div class="lang-toggle">
-      <span>LANGUAGE</span>
-      <div class="switch">
-        <span data-hover>中文</span>
-        <span class="active" data-hover>English</span>
-      </div>
-    </div>
-    <div class="play-cta" data-hover>
-      <span class="label">READY<br>TO PLAY?</span>
-      <button class="btn">BUY TICKET ↗</button>
+    <div class="cta" data-cursor="link">
+      <span class="cta__label" data-i18n-html="cta.ready">READY TO<br>DEPART?</span>
+      <button type="button" class="cta__btn">
+        <span data-i18n="cta.enter">REQUEST ACCESS</span>
+        <span aria-hidden="true">↗</span>
+      </button>
     </div>
   </footer>
 </div>
 
-<a class="how-to-play" data-hover>▶ How to Play</a>
-<div class="audio-icon" data-hover>
-  <div class="bars">
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
+<!-- ═══ Dossier (focus view) ═════════════════════════════════════════ -->
+<section id="dossier" class="dossier" aria-hidden="true" aria-live="polite">
+  <button type="button" class="dossier__back" data-action="release" data-cursor="link">
+    <span aria-hidden="true">←</span> <span data-i18n="panel.back">Return to system</span>
+  </button>
+
+  <div class="dossier__panel">
+    <div class="dossier__art" data-dossier="art" role="img"></div>
+
+    <div class="dossier__body">
+      <span class="dossier__code" data-dossier="code">VEL-01</span>
+      <h2 class="dossier__name" data-dossier="name">VELTHARA</h2>
+      <p class="dossier__epithet" data-dossier="epithet">The Ember Cradle</p>
+      <p class="dossier__class" data-dossier="class">Terrestrial · Volcanic</p>
+      <p class="dossier__brief" data-dossier="brief"></p>
+
+      <div class="dossier__lockrow">
+        <span class="dossier__locklabel" data-dossier="lock-label" data-i18n="panel.locked">DATA ENCRYPTED</span>
+        <span class="dossier__lock" data-dossier="lock" data-i18n="panel.scan">HOLD TO SCAN</span>
+      </div>
+
+      <dl class="dossier__stats" data-dossier="stats"></dl>
+    </div>
+  </div>
+
+  <div id="scan-bar" class="scan-bar" aria-hidden="true"><span></span></div>
+</section>
+
+<!-- ═══ Menu overlay ═════════════════════════════════════════════════ -->
+<div id="menu" class="menu" aria-hidden="true">
+  <div class="menu__sheet">
+    <button type="button" class="menu__close" data-menu-close data-cursor="link" aria-label="Close">×</button>
+    <ul class="menu__list">
+      <li><a href="#" data-cursor="link" data-i18n="nav.catalog">Catalog</a></li>
+      <li><a href="#" data-cursor="link" data-i18n="nav.archive">Archive</a></li>
+      <li><a href="#" data-cursor="link" data-i18n="nav.contact">Contact</a></li>
+      <li><a href="#" data-cursor="link" data-i18n="nav.login">Access</a></li>
+    </ul>
+    <p class="menu__claim" data-i18n="brand.claim"></p>
   </div>
 </div>
 
-<script type="module">
-import * as THREE from 'three';
+<!-- ═══ Audio toggle ═════════════════════════════════════════════════ -->
+<button id="audio-toggle" type="button" class="audio-toggle" data-cursor="link" aria-label="Mute audio">
+  <span class="audio-toggle__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+</button>
 
-// ═══════════════════════════════════════════════════════════
-// CONFIG — one place to change colors
-// ═══════════════════════════════════════════════════════════
-const COLORS = {
-  accent: 0x00d4ff,        // Main blue
-  accentDim: 0x0a2438,     // Darker blue
-  ambient: 0x88bbff,       // Soft blue ambient
-};
-
-const GAME_NAMES = ['ASTRA PRIME', 'NEBULA CODE', 'VOID PROTOCOL', 'STELLAR RIFT'];
-
-// ═══════════════════════════════════════════════════════════
-// SCENE SETUP
-// ═══════════════════════════════════════════════════════════
-const canvas = document.getElementById('solar-canvas');
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 1.2, 8);
-camera.lookAt(0, 0, 0);
-
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-// ═══════════════════════════════════════════════════════════
-// LIGHTING
-// ═══════════════════════════════════════════════════════════
-scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-keyLight.position.set(5, 3, 5);
-scene.add(keyLight);
-
-const fillLight = new THREE.DirectionalLight(0xaaccff, 0.4);
-fillLight.position.set(-5, 2, -3);
-scene.add(fillLight);
-
-// Point light that pulses (for extra life)
-const pulseLight = new THREE.PointLight(COLORS.accent, 0.5, 10);
-pulseLight.position.set(0, 0, 0);
-scene.add(pulseLight);
-
-// ═══════════════════════════════════════════════════════════
-// PLANETS
-// ═══════════════════════════════════════════════════════════
-const PLANET_COUNT = 4;
-const ORBIT_RADIUS = 2.5;
-const PLANET_SIZE = 0.7;
-const CENTER_TARGET = new THREE.Vector3(0, 0, 2);   // Where selected planets fly to
-
-const planetTextures = [
-  'public/3d/3dbox1en.png',
-  'public/3d/3dbox2en.png',
-  'public/3d/3dbox3en.png',
-  'public/3d/3dbox4en.png',
-];
-
-const planets = [];
-const orbitGroup = new THREE.Group();
-scene.add(orbitGroup);
-
-const textureLoader = new THREE.TextureLoader();
-
-for (let i = 0; i < PLANET_COUNT; i++) {
-  const angle = (i / PLANET_COUNT) * Math.PI * 2;
-  
-  // Planet mesh
-  const geometry = new THREE.SphereGeometry(PLANET_SIZE, 64, 64);
-  const texture = textureLoader.load(planetTextures[i]);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    roughness: 0.6,
-    metalness: 0.4,
-    emissive: 0x000000,
-    emissiveIntensity: 0,
-  });
-  
-  const planet = new THREE.Mesh(geometry, material);
-  planet.position.x = Math.cos(angle) * ORBIT_RADIUS;
-  planet.position.z = Math.sin(angle) * ORBIT_RADIUS;
-  planet.userData = { index: i, isSelected: false, orbitIndex: i };
-  
-  // GLOW HALO (bigger transparent sphere behind)
-  const haloGeom = new THREE.SphereGeometry(PLANET_SIZE * 1.3, 32, 32);
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: COLORS.accent,
-    transparent: true,
-    opacity: 0.08,
-    side: THREE.BackSide,
-  });
-  const halo = new THREE.Mesh(haloGeom, haloMat);
-  planet.add(halo);
-  planet.userData.halo = halo;
-  
-  // ORBIT RING around each planet
-  const ringGeom = new THREE.RingGeometry(PLANET_SIZE * 1.4, PLANET_SIZE * 1.45, 64);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: COLORS.accent,
-    transparent: true,
-    opacity: 0.4,
-    side: THREE.DoubleSide,
-  });
-  const ring = new THREE.Mesh(ringGeom, ringMat);
-  ring.rotation.x = Math.PI / 2;
-  planet.add(ring);
-  planet.userData.ring = ring;
-  
-  orbitGroup.add(planet);
-  planets.push(planet);
-}
-
-// ═══════════════════════════════════════════════════════════
-// AMBIENT STARS
-// ═══════════════════════════════════════════════════════════
-const starGeom = new THREE.BufferGeometry();
-const starPositions = [];
-for (let i = 0; i < 800; i++) {
-  starPositions.push((Math.random() - 0.5) * 80);
-  starPositions.push((Math.random() - 0.5) * 80);
-  starPositions.push((Math.random() - 0.5) * 80);
-}
-starGeom.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-const starMat = new THREE.PointsMaterial({
-  color: COLORS.accent,
-  size: 0.04,
-  transparent: true,
-  opacity: 0.7,
-});
-const stars = new THREE.Points(starGeom, starMat);
-scene.add(stars);
-
-// CENTER GLOW SPHERE (small pulsing point at orbit center)
-const centerGlowGeom = new THREE.SphereGeometry(0.15, 32, 32);
-const centerGlowMat = new THREE.MeshBasicMaterial({
-  color: COLORS.accent,
-  transparent: true,
-  opacity: 0.6,
-});
-const centerGlow = new THREE.Mesh(centerGlowGeom, centerGlowMat);
-scene.add(centerGlow);
-
-// ═══════════════════════════════════════════════════════════
-// INTERACTION
-// ═══════════════════════════════════════════════════════════
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let hoveredPlanet = null;
-let selectedPlanet = null;
-let orbitTargetSpeed = 1;
-let currentOrbitSpeed = 1;
-
-const cursorRing = document.getElementById('cursorRing');
-const cursorContainer = document.getElementById('cursorContainer');
-const planetInfo = document.getElementById('planetInfo');
-const planetName = document.getElementById('planetName');
-const labelsContainer = document.getElementById('planetLabels');
-const labels = document.querySelectorAll('.planet-label');
-
-let mouseX = window.innerWidth / 2;
-let mouseY = window.innerHeight / 2;
-
-window.addEventListener('mousemove', (e) => {
-  mouseX = e.clientX;
-  mouseY = e.clientY;
-  cursorContainer.style.left = mouseX + 'px';
-  cursorContainer.style.top = mouseY + 'px';
-  cursorRing.style.left = mouseX + 'px';
-  cursorRing.style.top = mouseY + 'px';
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-});
-
-window.addEventListener('click', (e) => {
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(planets, false);
-  if (intersects.length > 0) {
-    const clicked = intersects[0].object;
-    if (selectedPlanet === clicked) {
-      deselectAll();
-    } else {
-      selectPlanet(clicked);
-    }
-  }
-});
-
-// SINGLE SELECTION — only one planet can be at center
-function selectPlanet(planet) {
-  // First deselect ANY previously selected planet
-  planets.forEach(p => p.userData.isSelected = false);
-  
-  // Now select the new one
-  selectedPlanet = planet;
-  planet.userData.isSelected = true;
-  orbitTargetSpeed = 0;
-  
-  // Update UI
-  planetName.textContent = GAME_NAMES[planet.userData.index];
-  planetInfo.classList.add('visible');
-  
-  document.querySelectorAll('.game-item').forEach(g => g.classList.remove('active'));
-  const item = document.querySelector(`.game-item[data-planet="${planet.userData.index}"]`);
-  if (item) item.classList.add('active');
-  
-  // Update labels
-  labels.forEach(l => {
-    l.classList.remove('selected');
-    const idx = parseInt(l.dataset.planet);
-    if (idx === planet.userData.index) {
-      l.classList.add('selected');
-    } else {
-      l.classList.add('dimmed');
-    }
-  });
-}
-
-function deselectAll() {
-  planets.forEach(p => p.userData.isSelected = false);
-  selectedPlanet = null;
-  orbitTargetSpeed = 1;
-  planetInfo.classList.remove('visible');
-  labels.forEach(l => {
-    l.classList.remove('selected');
-    l.classList.remove('dimmed');
-  });
-}
-
-// Click game in sidebar → select that planet
-document.querySelectorAll('.game-item').forEach(item => {
-  item.addEventListener('click', () => {
-    const index = parseInt(item.dataset.planet);
-    if (planets[index]) {
-      if (selectedPlanet === planets[index]) {
-        deselectAll();
-      } else {
-        selectPlanet(planets[index]);
-      }
-    }
-  });
-});
-
-// Click a floating label → select that planet
-labels.forEach(label => {
-  label.style.pointerEvents = 'auto';
-  label.addEventListener('click', () => {
-    const index = parseInt(label.dataset.planet);
-    if (planets[index]) {
-      if (selectedPlanet === planets[index]) {
-        deselectAll();
-      } else {
-        selectPlanet(planets[index]);
-      }
-    }
-  });
-});
-
-document.querySelectorAll('[data-hover]').forEach(el => {
-  el.addEventListener('mouseenter', () => cursorRing.classList.add('hover-planet'));
-  el.addEventListener('mouseleave', () => cursorRing.classList.remove('hover-planet'));
-});
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// ═══════════════════════════════════════════════════════════
-// PROJECT 3D POSITION → 2D SCREEN COORDS
-// Used to position HTML labels above planets
-// ═══════════════════════════════════════════════════════════
-function worldToScreen(vec3) {
-  const proj = vec3.clone().project(camera);
-  return {
-    x: (proj.x * 0.5 + 0.5) * window.innerWidth,
-    y: (-proj.y * 0.5 + 0.5) * window.innerHeight,
-    visible: proj.z < 1,
-  };
-}
-
-// ═══════════════════════════════════════════════════════════
-// ANIMATION LOOP
-// ═══════════════════════════════════════════════════════════
-const clock = new THREE.Clock();
-let orbitAngle = 0;
-let loadingHidden = false;
-
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = clock.getDelta();
-  const elapsed = clock.getElapsedTime();
-  
-  currentOrbitSpeed += (orbitTargetSpeed - currentOrbitSpeed) * 0.05;
-  orbitAngle += delta * 0.15 * currentOrbitSpeed;
-  orbitGroup.rotation.y = orbitAngle;
-  
-  // Pulsing center light
-  pulseLight.intensity = 0.4 + Math.sin(elapsed * 2) * 0.3;
-  centerGlow.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.3);
-  
-  // Rotate center glow
-  centerGlow.rotation.y = elapsed * 0.5;
-  
-  planets.forEach((planet, i) => {
-    // Each planet spins on itself
-    planet.rotation.y += delta * 0.4;
-    
-    // Halo pulses
-    if (planet.userData.halo) {
-      const pulse = 1 + Math.sin(elapsed * 1.5 + i) * 0.05;
-      planet.userData.halo.scale.setScalar(pulse);
-    }
-    
-    // Ring rotates
-    if (planet.userData.ring) {
-      planet.userData.ring.rotation.z = elapsed * 0.5;
-    }
-    
-    // POSITION LOGIC — selected flies to front-center, others return to orbit
-    if (planet.userData.isSelected) {
-      // Convert center target from world space to orbit-group local space
-      // Since we want it to STAY at CENTER_TARGET even as orbit rotates,
-      // we need to counter-rotate the target
-      const worldTarget = new THREE.Vector3(0, 0, 4);
-      const localTarget = worldTarget.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -orbitGroup.rotation.y);
-      planet.position.lerp(localTarget, 0.06);
-      planet.scale.lerp(new THREE.Vector3(1.7, 1.7, 1.7), 0.06);
-      
-      // Increase emissive on selected
-      planet.material.emissiveIntensity = THREE.MathUtils.lerp(planet.material.emissiveIntensity, 0.8, 0.05);
-    } else {
-      // Return to orbital position
-      const angle = (i / PLANET_COUNT) * Math.PI * 2;
-      const targetPos = new THREE.Vector3(
-        Math.cos(angle) * ORBIT_RADIUS,
-        0,
-        Math.sin(angle) * ORBIT_RADIUS
-      );
-      planet.position.lerp(targetPos, 0.06);
-      planet.scale.lerp(new THREE.Vector3(1, 1, 1), 0.06);
-      planet.material.emissiveIntensity = THREE.MathUtils.lerp(planet.material.emissiveIntensity, 0.4, 0.05);
-    }
-    
-    // UPDATE LABEL POSITION — project planet's world position to screen
-    const worldPos = new THREE.Vector3();
-    planet.getWorldPosition(worldPos);
-    // Offset label below the planet
-    worldPos.y -= PLANET_SIZE * (planet.userData.isSelected ? 2.5 : 2.0);
-    const screen = worldToScreen(worldPos);
-    
-    const label = labelsContainer.querySelector(`[data-planet="${i}"]`);
-    if (label) {
-      label.style.left = screen.x + 'px';
-      label.style.top = screen.y + 'px';
-      label.style.opacity = screen.visible ? '' : '0';
-    }
-  });
-  
-  // Hover detection (only when not clicking labels or UI)
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(planets, false);
-  
-  if (intersects.length > 0) {
-    if (hoveredPlanet !== intersects[0].object) {
-      hoveredPlanet = intersects[0].object;
-      cursorRing.classList.add('hover-planet');
-    }
-  } else if (hoveredPlanet) {
-    hoveredPlanet = null;
-    cursorRing.classList.remove('hover-planet');
-  }
-  
-  // Camera parallax
-  const targetCamX = (mouseX / window.innerWidth - 0.5) * 0.8;
-  const targetCamY = 1.2 - (mouseY / window.innerHeight - 0.5) * 0.5;
-  camera.position.x += (targetCamX - camera.position.x) * 0.03;
-  camera.position.y += (targetCamY - camera.position.y) * 0.03;
-  camera.lookAt(0, 0, 0);
-  
-  stars.rotation.y += delta * 0.01;
-  
-  renderer.render(scene, camera);
-  
-  if (!loadingHidden) {
-    loadingHidden = true;
-    setTimeout(() => document.getElementById('loading').classList.add('hidden'), 300);
-  }
-}
-animate();
-
-// Language toggle
-document.querySelectorAll('.lang-toggle .switch span').forEach(sw => {
-  sw.addEventListener('click', () => {
-    document.querySelectorAll('.lang-toggle .switch span').forEach(s => s.classList.remove('active'));
-    sw.classList.add('active');
-  });
-});
-</script>
-
+<script type="module" src="src/main.js"></script>
 </body>
 </html>
