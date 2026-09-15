@@ -14,7 +14,8 @@
     "build": "vite build",
     "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder",
-    "test:e2e": "xvfb-run -a electron test/e2e.js"
+    "test:e2e": "xvfb-run -a electron test/e2e.js",
+    "dist:win": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -42,23 +43,45 @@
   },
   "build": {
     "appId": "com.cabinet.desktop",
+    "productName": "Cabinet",
+    "npmRebuild": false,
+    "asar": false,
     "files": [
       "electron/**/*",
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/better-sqlite3/**/*",
+      "!node_modules/@napi-rs/**/*",
+      "!**/node_modules/*/{test,__tests__,tests,example,examples,.bin}/**/*",
+      "!**/*.{md,map,ts}"
     ],
     "directories": {
       "output": "release"
     },
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "artifactName": "Cabinet-${version}-windows-x64.${ext}",
+      "signAndEditExecutable": false
+    },
     "mac": {
+      "target": [
+        "zip"
+      ],
       "category": "public.app-category.productivity"
     },
-    "win": {
-      "target": "nsis"
-    },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        "AppImage"
+      ],
       "category": "Office"
-    }
+    },
+    "extraFiles": [
+      {
+        "from": "START-HERE.txt",
+        "to": "START-HERE.txt"
+      }
+    ]
   }
 }
