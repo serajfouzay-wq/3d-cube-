@@ -1,0 +1,64 @@
+{
+  "name": "cabinet-desktop",
+  "productName": "Cabinet",
+  "version": "1.0.0",
+  "description": "Document intelligence and proposal desk \u2014 scans, files and drafts from your own documents.",
+  "main": "electron/main.js",
+  "author": "Cabinet",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5273 && cross-env NODE_ENV=development electron .\"",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder",
+    "test:e2e": "xvfb-run -a electron test/e2e.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
+    "better-sqlite3": "^11.7.0",
+    "mammoth": "^1.8.0",
+    "node-sqlite3-wasm": "^0.8.60",
+    "pdfjs-dist": "^4.2.67",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "docx": "^9.7.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.cabinet.desktop",
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  }
+}
