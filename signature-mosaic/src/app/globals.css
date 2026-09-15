@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05060a;
+  --background: #04050b;
   --foreground: #e8ecf5;
+  --cyan: #22d3ee;
+  --violet: #a855f7;
+  --amber: #fbbf24;
 }
 
 @theme inline {
@@ -10,34 +13,233 @@
   --color-foreground: var(--foreground);
 }
 
-html,
-body {
+html {
+  scroll-behavior: smooth;
+}
+
+/* The page background lives on <html>. `body` MUST stay transparent: it has no
+ * stacking context of its own, so an opaque body background would paint over the
+ * fixed z-index:-10 backdrop layer in the root stacking context. */
+html {
   background: var(--background);
+}
+
+body {
+  background: transparent;
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Aurora backdrop for the wall */
-.aurora {
-  background:
-    radial-gradient(60% 55% at 20% 10%, rgba(34, 211, 238, 0.16), transparent 70%),
-    radial-gradient(55% 50% at 85% 20%, rgba(168, 85, 247, 0.16), transparent 70%),
-    radial-gradient(60% 60% at 50% 100%, rgba(59, 130, 246, 0.12), transparent 70%);
+/* ---------------------------------------------------------------- *
+ * Keyframes
+ * ---------------------------------------------------------------- */
+
+@keyframes blob-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(6vw, 4vh, 0) scale(1.14); }
+  66%      { transform: translate3d(-4vw, 7vh, 0) scale(0.92); }
+}
+
+@keyframes blob-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  40%      { transform: translate3d(-7vw, 5vh, 0) scale(0.9); }
+  70%      { transform: translate3d(5vw, -4vh, 0) scale(1.2); }
+}
+
+@keyframes blob-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+  50%      { transform: translate3d(4vw, -6vh, 0) scale(1.15); }
+}
+
+@keyframes sheen-sweep {
+  0%   { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(320%) skewX(-18deg); }
+}
+
+@keyframes text-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+@keyframes ring-pulse {
+  0%   { transform: scale(0.85); opacity: 0.85; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes toast-in {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dash-orbit {
+  to { stroke-dashoffset: -260; }
+}
+
+@keyframes scan-line {
+  0%   { transform: translateY(-10%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(410%); opacity: 0; }
 }
 
 @keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
 }
 
-.fade-up {
-  animation: fade-up 0.4s ease-out both;
+/* ---------------------------------------------------------------- *
+ * Utilities
+ * ---------------------------------------------------------------- */
+
+.fade-up { animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Scroll reveal — `.in` is added by an IntersectionObserver. */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* Animated gradient headline */
+.shimmer-text {
+  background: linear-gradient(100deg, #67e8f9, #c4b5fd, #f0abfc, #67e8f9);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shimmer 7s linear infinite;
+}
+
+.shimmer-text-warm {
+  background: linear-gradient(100deg, #fcd34d, #fb7185, #f0abfc, #fcd34d);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shimmer 7s linear infinite;
+}
+
+/* Glass card with a hover lift + glow */
+.card {
+  position: relative;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.5), rgba(2, 6, 23, 0.42));
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.45s ease,
+    box-shadow 0.45s ease;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgba(34, 211, 238, 0.5), transparent 45%, rgba(168, 85, 247, 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 24px 60px -30px rgba(34, 211, 238, 0.6);
+}
+.card-hover:hover::before { opacity: 1; }
+
+/* Primary button with a light sweep on hover */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-image: linear-gradient(120deg, #22d3ee, #818cf8, #a855f7);
+  background-size: 200% auto;
+  color: #04050b;
+  font-weight: 600;
+  transition: background-position 0.6s ease, transform 0.18s ease, box-shadow 0.35s ease;
+  box-shadow: 0 10px 30px -12px rgba(34, 211, 238, 0.85);
+}
+.btn-primary:hover:not(:disabled) {
+  background-position: right center;
+  box-shadow: 0 14px 38px -12px rgba(168, 85, 247, 0.9);
+}
+.btn-primary:active:not(:disabled) { transform: scale(0.97); }
+
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+.btn-primary:hover:not(:disabled)::after { animation: sheen-sweep 0.9s ease; }
+
+/* Quiet button */
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.18s ease;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn-ghost:active:not(:disabled) { transform: scale(0.96); }
+
+.float-soft { animation: float-soft 6s ease-in-out infinite; }
+.spin-slow  { animation: spin-slow 9s linear infinite; }
+.toast-in   { animation: toast-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Film grain over the whole page */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------- *
+ * Reduced motion
+ * ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
 }

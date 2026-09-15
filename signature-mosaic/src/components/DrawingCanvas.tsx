@@ -230,11 +230,27 @@ export default function DrawingCanvas({
   return (
     <div className="w-full">
       <div
-        className={`relative overflow-hidden rounded-2xl border ${
-          dark ? "border-white/15 bg-slate-950/70" : "border-slate-300 bg-white"
+        className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${
+          dark
+            ? `bg-slate-950/60 ${drawing ? "border-cyan-400/50 shadow-[0_0_0_4px_rgba(34,211,238,0.10),0_20px_50px_-24px_rgba(34,211,238,0.85)]" : "border-white/12"}`
+            : `bg-white ${drawing ? "border-cyan-500/60 shadow-[0_0_0_4px_rgba(34,211,238,0.14)]" : "border-slate-300"}`
         }`}
         style={{ height }}
       >
+        {/* Corner ticks — a quiet "this is a canvas" cue */}
+        {dark && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-3 rounded-xl opacity-40"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+              maskImage: "radial-gradient(75% 65% at 50% 50%, #000, transparent 85%)",
+              WebkitMaskImage: "radial-gradient(75% 65% at 50% 50%, #000, transparent 85%)",
+            }}
+          />
+        )}
         {/* Guide line + placeholder */}
         {guideLine && (
           <div
@@ -245,10 +261,11 @@ export default function DrawingCanvas({
         )}
         {!hasInk && !drawing && (
           <div
-            className={`pointer-events-none absolute inset-0 flex items-center justify-center text-sm ${
+            className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm transition-opacity duration-300 ${
               dark ? "text-white/25" : "text-slate-400"
             }`}
           >
+            <span className="float-soft text-2xl opacity-60">✎</span>
             {hint}
           </div>
         )}
@@ -272,8 +289,10 @@ export default function DrawingCanvas({
               type="button"
               aria-label={`Ink ${ink}`}
               onClick={() => setColor(ink)}
-              className={`h-6 w-6 rounded-full border transition ${
-                color === ink ? "scale-110 border-white ring-2 ring-white/40" : "border-white/25"
+              className={`h-6 w-6 rounded-full border transition-all duration-300 hover:scale-110 ${
+                color === ink
+                  ? "scale-115 border-white ring-2 ring-offset-2 ring-white/50 ring-offset-transparent"
+                  : "border-white/25 opacity-70 hover:opacity-100"
               }`}
               style={{ background: ink }}
             />
@@ -298,8 +317,8 @@ export default function DrawingCanvas({
             type="button"
             onClick={undo}
             disabled={!hasInk || busy}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-35 ${
-              dark ? "bg-white/10 text-white hover:bg-white/20" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            className={`btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-35 ${
+              dark ? "text-white" : "!border-slate-200 !bg-slate-100 text-slate-700"
             }`}
           >
             Undo
@@ -308,8 +327,8 @@ export default function DrawingCanvas({
             type="button"
             onClick={clear}
             disabled={!hasInk || busy}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-35 ${
-              dark ? "bg-white/10 text-white hover:bg-white/20" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            className={`btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-35 ${
+              dark ? "text-white" : "!border-slate-200 !bg-slate-100 text-slate-700"
             }`}
           >
             Clear
@@ -318,9 +337,16 @@ export default function DrawingCanvas({
             type="button"
             onClick={submit}
             disabled={!hasInk || busy}
-            className="rounded-lg bg-gradient-to-r from-cyan-400 to-violet-500 px-4 py-1.5 text-xs font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-35"
+            className="btn-primary rounded-lg px-4 py-2 text-xs disabled:opacity-35 disabled:shadow-none"
           >
-            {busy ? "Working…" : submitLabel}
+            {busy ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-900/30 border-t-slate-900" />
+                Working…
+              </span>
+            ) : (
+              submitLabel
+            )}
           </button>
         </div>
       </div>

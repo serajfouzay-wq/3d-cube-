@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import DrawingCanvas, { type CapturedDrawing } from "@/components/DrawingCanvas";
+import { useReveal } from "@/lib/useReveal";
 import type { SketchToLifeResult } from "@/lib/types";
 
 const PRESETS = ["a red rose", "a sunflower in a field", "a tabby cat", "a goldfish", "an oak tree"];
@@ -15,6 +16,8 @@ export default function SketchPage() {
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<{ provider: string; mocked: boolean } | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const leftRef = useReveal<HTMLDivElement>();
+  const rightRef = useReveal<HTMLDivElement>();
 
   useEffect(() => {
     fetch("/api/sketch-to-life")
@@ -51,27 +54,33 @@ export default function SketchPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-5 pb-16">
-      <div className="fade-up">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Sketch{" "}
-          <span className="bg-gradient-to-r from-amber-300 to-rose-400 bg-clip-text text-transparent">
-            to life
-          </span>
+      <div className="pt-6 sm:pt-10">
+        <h1
+          className="fade-up text-4xl font-semibold tracking-tight sm:text-6xl"
+          style={{ animationDelay: "60ms" }}
+        >
+          Sketch <span className="shimmer-text-warm">to life</span>
         </h1>
-        <p className="mt-2 max-w-xl text-sm text-white/55">
+        <p
+          className="fade-up mt-4 max-w-xl text-sm leading-relaxed text-white/55 sm:text-base"
+          style={{ animationDelay: "140ms" }}
+        >
           Draw a rough shape — a rose, a cat, a tree — describe it in a few words, and the sketch is
           handed to an image-to-image model as a structural guide.
         </p>
 
         {provider && (
           <div
-            className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${
+            className={`fade-up mt-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${
               provider.mocked
                 ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
                 : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
             }`}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-70" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+            </span>
             {provider.mocked
               ? "Mock renderer — add REPLICATE_API_TOKEN, FAL_KEY or OPENAI_API_KEY to go live"
               : `Live via ${provider.provider}`}
@@ -79,10 +88,15 @@ export default function SketchPage() {
         )}
       </div>
 
-      <div className="fade-up mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
         {/* Input side */}
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5 backdrop-blur-sm">
-          <h2 className="mb-3 text-lg font-semibold">1 · Sketch it</h2>
+        <div ref={leftRef} className="reveal card card-hover p-5 sm:p-6">
+          <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-400/15 font-mono text-xs text-amber-300">
+              1
+            </span>
+            Sketch it
+          </h2>
           <DrawingCanvas
             theme="light"
             height={340}
@@ -95,12 +109,17 @@ export default function SketchPage() {
           />
 
           <div className="mt-5">
-            <label className="text-sm font-medium">2 · Describe it</label>
+            <label className="flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-400/15 font-mono text-xs text-amber-300">
+                2
+              </span>
+              Describe it
+            </label>
             <input
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               maxLength={300}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-amber-400/60"
+              className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-white/25 focus:border-amber-400/60 focus:bg-white/[0.07] focus:shadow-[0_0_0_4px_rgba(251,191,36,0.12)]"
               placeholder="a red rose, dew on the petals"
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -108,7 +127,11 @@ export default function SketchPage() {
                 <button
                   key={p}
                   onClick={() => setPrompt(p)}
-                  className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/60 transition hover:border-amber-400/40 hover:text-white"
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-all duration-300 hover:-translate-y-0.5 ${
+                    prompt === p
+                      ? "border-amber-400/50 bg-amber-400/15 text-amber-200"
+                      : "border-white/10 bg-white/[0.04] text-white/55 hover:border-amber-400/40 hover:text-white"
+                  }`}
                 >
                   {p}
                 </button>
@@ -132,13 +155,21 @@ export default function SketchPage() {
         </div>
 
         {/* Output side */}
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5 backdrop-blur-sm">
-          <h2 className="mb-3 text-lg font-semibold">3 · Alive</h2>
+        <div ref={rightRef} className="reveal card card-hover p-5 sm:p-6" style={{ transitionDelay: "110ms" }}>
+          <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-rose-400/15 font-mono text-xs text-rose-300">
+              3
+            </span>
+            Alive
+          </h2>
 
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60">
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50">
             {!sketch && (
-              <div className="grid h-full place-items-center px-6 text-center text-sm text-white/35">
-                Your generated image lands here
+              <div className="grid h-full place-items-center px-6 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <span className="float-soft text-3xl opacity-40">🌹</span>
+                  <p className="text-sm text-white/35">Your generated image lands here</p>
+                </div>
               </div>
             )}
 
@@ -166,13 +197,41 @@ export default function SketchPage() {
             )}
 
             {status === "loading" && (
-              <div className="absolute inset-0 grid place-items-center bg-slate-950/70 backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-amber-300" />
-                  <p className="text-sm text-white/70">Bringing it to life…</p>
-                  <p className="max-w-[16rem] text-center text-xs text-white/35">
-                    Sending your strokes as a structural guide
-                  </p>
+              <div className="absolute inset-0 overflow-hidden bg-slate-950/85 backdrop-blur-[3px]">
+                {/* Scanner sweeping down over the sketch */}
+                <div
+                  className="absolute inset-x-0 h-24 bg-gradient-to-b from-transparent via-amber-300/25 to-transparent"
+                  style={{ animation: "scan-line 2.2s ease-in-out infinite" }}
+                />
+                <div className="relative grid h-full place-items-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <svg viewBox="0 0 100 100" className="h-16 w-16">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        fill="none"
+                        stroke="rgba(255,255,255,0.09)"
+                        strokeWidth="3"
+                      />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        fill="none"
+                        stroke="#fcd34d"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeDasharray="70 190"
+                        style={{ animation: "dash-orbit 1.4s linear infinite" }}
+                      />
+                      <circle cx="50" cy="50" r="5" fill="#fb7185" className="float-soft" />
+                    </svg>
+                    <p className="text-sm font-medium text-white/80">Bringing it to life…</p>
+                    <p className="max-w-[16rem] text-center text-xs text-white/35">
+                      Sending your strokes as a structural guide
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -185,7 +244,7 @@ export default function SketchPage() {
           )}
 
           {result && (
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/45">
+            <div className="fade-up mt-4 flex flex-wrap items-center gap-3 text-xs text-white/45">
               <span>
                 via <span className="text-white/75">{result.provider}</span>
               </span>
@@ -194,7 +253,7 @@ export default function SketchPage() {
                 <button
                   onMouseEnter={() => setRevealed(false)}
                   onMouseLeave={() => setRevealed(true)}
-                  className="rounded-lg bg-white/10 px-2.5 py-1 font-medium text-white/80 transition hover:bg-white/20"
+                  className="btn-ghost rounded-lg px-2.5 py-1 font-medium text-white/80"
                 >
                   Hold to compare
                 </button>
@@ -202,7 +261,7 @@ export default function SketchPage() {
               <a
                 href={result.imageUrl}
                 download="sketch-to-life.png"
-                className="ml-auto rounded-lg bg-white/10 px-2.5 py-1 font-medium text-white/80 transition hover:bg-white/20"
+                className="btn-ghost ml-auto rounded-lg px-2.5 py-1 font-medium text-white/80"
               >
                 Download
               </a>
