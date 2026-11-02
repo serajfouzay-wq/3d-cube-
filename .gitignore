@@ -1,0 +1,17 @@
+# Generated proposals. These are build output: a deck is rebuilt from the
+# template and a typed request whenever it is needed, so keeping a multi-
+# megabyte binary in history would only make the repository heavier to clone.
+# See premium-desktop-file-scanner-and-proposal-generator: npm run demo
+Proposal-demo-*.pptx
+Proposal-*.pptx
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# Local environment and editor state
+.env
+.env.local
+.DS_Store
+Thumbs.db
